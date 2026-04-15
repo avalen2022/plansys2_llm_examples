@@ -1,0 +1,27 @@
+move:
+  ros__parameters:
+    plugins:
+      - move_bt_node
+    waypoints: ["shelf_red", "shelf_green", "shelf_yellow", "shelf_blue", "middle_path", "deposit_table", "reception"]
+    # Coordinates in map frame — verified visually in RViz2 with TF overlay
+    waypoint_coords:
+      reception:     [ 0.26,  3.66, 0.0]
+      deposit_table: [ 0.07,  0.83, 0.0]
+      shelf_blue:    [-2.03, -1.45, 0.0]
+      shelf_yellow:  [ 0.72, -1.45, 0.0]
+      shelf_green:   [ 0.69, -4.73, 0.0]
+      middle_path:   [ 0.46, -6.40, 0.0]
+      shelf_red:     [-1.95, -4.62, 0.0]
+
+pick_book:
+  ros__parameters:
+    plugins:
+      - approach_object_bt_node
+      - check_book_present_bt_node
+      - pick_book_bt_node
+
+place_book:
+  ros__parameters:
+    plugins:
+      - approach_object_bt_node
+      - place_book_bt_node

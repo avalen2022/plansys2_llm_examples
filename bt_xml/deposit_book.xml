@@ -1,0 +1,12 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence name="Place_book_sequence">
+      <ApproachObject name="approach_object"/>
+      <CheckBookPresent name="check_book_present"/>
+      <PickBook name="pick_book" />
+      <Move name="move" goal="{arg3}"/>
+      <ApproachObject name="approach_object"/>
+      <PlaceBook name="place_book"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

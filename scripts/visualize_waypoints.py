@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""
+Publish waypoints as TF frames in the map frame.
+
+Edit the WAYPOINTS dict below, run the script, and check RViz2 (TF display).
+
+Usage:
+  python3 visualize_waypoints.py
+  # Edit coords, Ctrl+C, rerun to update
+"""
+
+import math
+import rclpy
+from rclpy.node import Node
+from tf2_ros import StaticTransformBroadcaster
+from geometry_msgs.msg import TransformStamped
+
+# ── Edit these coordinates [x, y, theta_rad] ──────────────────────────
+WAYPOINTS = {
+    "reception":     [ 0.26,  3.66, 0.0],
+    "deposit_table": [ 0.07,  0.83, 0.0],
+    "shelf_blue":    [-2.03, -1.45, 0.0],
+    "shelf_yellow":  [ 0.72, -1.45, 0.0],
+    "shelf_green":   [ 0.69, -4.73, 0.0],
+    "middle_path":   [ 0.46, -6.40, 0.0],
+    "shelf_red":     [-1.95, -4.62, 0.0],
+}
+# ───────────────────────────────────────────────────────────────────────
+
+
+class WaypointTFPublisher(Node):
+    def __init__(self):
+        super().__init__('waypoint_tf_publisher')
+        self.broadcaster = StaticTransformBroadcaster(self)
+
+        transforms = []
+        for name, (x, y, theta) in WAYPOINTS.items():
+            t = TransformStamped()
+            t.header.stamp = self.get_clock().now().to_msg()
+            t.header.frame_id = 'map'
+            t.child_frame_id = f'wp_{name}'
+            t.transform.translation.x = x
+            t.transform.translation.y = y
+            t.transform.translation.z = 0.0
+            t.transform.rotation.z = math.sin(theta / 2.0)
+            t.transform.rotation.w = math.cos(theta / 2.0)
+            transforms.append(t)
+
+        self.broadcaster.sendTransform(transforms)
+        self.get_logger().info(
+            f"Published {len(transforms)} waypoint TFs (wp_<name>)")
+
+
+def main():
+    rclpy.init()
+    node = WaypointTFPublisher()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
