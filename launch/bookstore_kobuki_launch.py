@@ -87,12 +87,12 @@ def generate_launch_description():
     )
 
     # -- 3. Bridges ------------------------------------------------------------
-    clock_bridge = Node(
+    ros_gz_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
-        name='bridge_clock',
+        name='bridge_ros_gz',
         parameters=[{
-            'config_file': join(bookstore_dir, 'config', 'bridge', 'clock_bridge.yaml'),
+            'config_file': join(bookstore_dir, 'config', 'bridge', 'kobuki_bridge.yaml'),
             'use_sim_time': True,
         }],
         output='screen',
@@ -214,7 +214,7 @@ def generate_launch_description():
     ld.add_action(gazebo_server)
     ld.add_action(gazebo_client)
     ld.add_action(spawn_robot)
-    ld.add_action(clock_bridge)
+    ld.add_action(ros_gz_bridge)
 
     ld.add_action(easynav_system)
     ld.add_action(plansys2)
