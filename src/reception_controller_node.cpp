@@ -37,9 +37,9 @@ public:
     executor_client_ = std::make_shared<plansys2::ExecutorClient>();
     // Ensure solver_timeout is set before SolverClient reads it
     if (!has_parameter("solver_timeout")) {
-      declare_parameter<double>("solver_timeout", 240.0);
+      declare_parameter<double>("solver_timeout", 150.0);
     }
-    set_parameter(rclcpp::Parameter("solver_timeout", 240.0));
+    set_parameter(rclcpp::Parameter("solver_timeout", 150.0));
     solver_client_ = std::make_shared<plansys2::SolverClient>();
 
     // Perception subscription — accumulates observations as backup context.
@@ -296,7 +296,7 @@ int main(int argc, char ** argv)
 
   // Ensure the reception node has solver_timeout so SolverClient picks it up
   if (!reception_node->has_parameter("solver_timeout")) {
-    reception_node->declare_parameter<double>("solver_timeout", 240.0);
+    reception_node->declare_parameter<double>("solver_timeout", 150.0);
   }
 
   auto solver_node = std::make_shared<plansys2::SolverNode>();
