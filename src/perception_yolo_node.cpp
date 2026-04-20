@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <chrono>
 #include <cmath>
 #include <map>
@@ -11,12 +25,6 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "yolo_msgs/msg/detection_array.hpp"
 
-// Bridges YOLOv8 detections to /perception_events (same JSON format as
-// perception_sim_node). Subscribes to /yolo/detections and /odom, maps
-// detected objects to the nearest known waypoint, and publishes JSON events.
-//
-// Only forwards detections of interest (configurable classes) and applies
-// a cooldown to avoid flooding the topic with repeated sightings.
 class PerceptionYoloNode : public rclcpp::Node
 {
 public:
@@ -35,15 +43,12 @@ public:
     min_confidence_ = get_parameter("min_confidence").as_double();
     detect_classes_ = get_parameter("detect_classes").as_string_array();
 
-    // Load waypoint coordinates (same parameter structure as Move.cpp)
     load_waypoints();
 
-    // Subscribe to YOLOv8 detections
     detection_sub_ = create_subscription<yolo_msgs::msg::DetectionArray>(
       "/yolo/detections", 10,
       std::bind(&PerceptionYoloNode::on_detections, this, std::placeholders::_1));
 
-    // Subscribe to odometry for robot position
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
       "/odom", 10,
       [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -116,7 +121,6 @@ private:
   {
     if (!has_odom_) {return;}
 
-    // Cooldown check
     auto now = this->now();
     if ((now - last_detection_time_).seconds() < cooldown_sec_) {
       return;
@@ -144,7 +148,7 @@ private:
         det.class_name.c_str(), location.c_str(), det.score);
 
       last_detection_time_ = now;
-      return;  // One event per cooldown period
+      return;
     }
   }
 
@@ -165,9 +169,9 @@ private:
   std::map<std::string, Pose2D> waypoints_;
   std::vector<std::string> detect_classes_;
 
-  double robot_x_{0.0};
-  double robot_y_{0.0};
-  bool has_odom_{false};
+  double robot_x_ = 0.0;
+  double robot_y_ = 0.0;
+  bool has_odom_ = false;
 
   double cooldown_sec_;
   double min_confidence_;

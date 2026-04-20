@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <string>
 #include <iostream>
 
@@ -25,7 +39,6 @@ CheckBookPresent::halt()
 BT::NodeStatus
 CheckBookPresent::tick()
 {
-  // On first tick, read the displaced book from ROS parameter
   if (!initialized_) {
     rclcpp_lifecycle::LifecycleNode::SharedPtr node;
     (void)config().blackboard->get("node", node);
@@ -37,8 +50,6 @@ CheckBookPresent::tick()
 
       node->get_parameter("displaced_book", displaced_book_);
 
-      // Derive the original shelf from the book name (e.g. red_book → shelf_red)
-      // The book is NOT at this location. It's only missing here.
       std::string color = displaced_book_.substr(0, displaced_book_.find('_'));
       displaced_from_ = "shelf_" + color;
     }
@@ -51,9 +62,7 @@ CheckBookPresent::tick()
   (void)config().blackboard->get("arg1", book_name);
   (void)config().blackboard->get("arg2", location);
 
-  // Only fail if the book is displaced AND we're at the original shelf
-  // where it's NOT. At any other location (e.g. middle_path after replan),
-  // the book is physically present.
+  // FAIL only when asked to pick the displaced book from its original shelf.
   if (book_name == displaced_book_ && location == displaced_from_) {
     std::string msg = "CheckBookPresent: " + book_name +
       " NOT FOUND at " + location + ". Book is missing.";

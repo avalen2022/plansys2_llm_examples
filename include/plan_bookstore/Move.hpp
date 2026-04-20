@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef PLAN_BOOKSTORE__MOVE_HPP_
 #define PLAN_BOOKSTORE__MOVE_HPP_
 
@@ -19,9 +33,9 @@ namespace plan_bookstore
 
 struct Pose2D
 {
-  double x{0.0};
-  double y{0.0};
-  double theta{0.0};
+  double x = 0.0;
+  double y = 0.0;
+  double theta = 0.0;
 };
 
 class Move : public BT::ActionNodeBase
@@ -42,33 +56,27 @@ public:
   }
 
 private:
-  // EasyNav navigation state
   enum class NavState { IDLE, GOAL_SENT, NAVIGATING, FINISHED, FAILED };
-  NavState nav_state_{NavState::IDLE};
+  NavState nav_state_ = NavState::IDLE;
 
-  // EasyNav topic communication
   using NavigationControl = easynav_interfaces::msg::NavigationControl;
   rclcpp::Publisher<NavigationControl>::SharedPtr control_pub_;
   rclcpp::Subscription<NavigationControl>::SharedPtr control_sub_;
   std::string client_id_;
-  int64_t seq_{0};
+  int64_t seq_ = 0;
 
   void on_control_msg(NavigationControl::UniquePtr msg);
 
-  // Waypoint map (loaded from params)
   std::map<std::string, Pose2D> waypoints_;
 
-  // Perception subscription — accumulates detections during move, dumps on finish
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr perception_sub_;
   std::vector<std::string> perceptions_during_move_;
   std::string current_goal_name_;
 
-  // Fake navigation mode (no EasyNav needed)
-  bool fake_navigation_{false};
-  int fake_tick_count_{0};
+  bool fake_navigation_ = false;
+  int fake_tick_count_ = 0;
   static constexpr int FAKE_TICKS_TO_FINISH = 15;
 
-  // PlanSys2 lifecycle node from blackboard
   rclcpp_lifecycle::LifecycleNode::SharedPtr node_;
 };
 

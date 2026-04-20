@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <chrono>
 #include <string>
 #include <vector>
@@ -8,12 +22,6 @@
 #include "std_msgs/msg/string.hpp"
 #include "plansys2_msgs/msg/action_execution.hpp"
 
-// Simulates a continuous perception/camera feed during robot navigation.
-// Only publishes when a move action is active (subscribed to /actions_hub).
-// Publishes multiple events over time — most are ambient observations,
-// but one of them reports the displaced book at an unexpected location.
-// Move BT nodes pick up these events and forward them into the action hub
-// via the out_msg blackboard variable.
 class PerceptionSimNode : public rclcpp::Node
 {
 public:
@@ -34,13 +42,11 @@ public:
 
     build_event_sequence();
 
-    // Subscribe to actions_hub to know when the robot is navigating
     action_sub_ = create_subscription<plansys2_msgs::msg::ActionExecution>(
       "/actions_hub", rclcpp::SensorDataQoS().reliable(),
       std::bind(&PerceptionSimNode::action_hub_callback, this, std::placeholders::_1));
 
-    // Perception publishes one event per move action (when move starts)
-    // This avoids flooding the action hub with repeated identical events
+    // One event per move — dedup on /actions_hub.
     RCLCPP_INFO(get_logger(),
       "Perception sim ready: %zu events queued "
       "(displaced book: %s at %s). Waiting for move actions...",
@@ -52,19 +58,17 @@ private:
   {
     nlohmann::json e;
 
-    // Event 1: Robot starts moving, camera sees nothing notable
     e = {{"observation", "nothing_detected"},
          {"location", "reception"},
          {"detail", "Robot departing reception area. No objects detected."}};
     events_.push_back(e.dump());
 
-    // Event 2: Robot detects a person
     e = {{"observation", "person_detected"},
          {"location", "middle_path"},
          {"detail", "Person detected walking through middle corridor."}};
     events_.push_back(e.dump());
 
-    // Event 3: Key event — robot sees the displaced book at middle_path
+    // The displaced-book sighting — the signal the LLM solver uses to correct state.
     e = {{"observation", "object_detected"},
          {"object", object_},
          {"location", location_},
@@ -72,13 +76,11 @@ private:
          {"detail", object_ + " detected on the floor at " + location_ + "."}};
     events_.push_back(e.dump());
 
-    // Event 4: More ambient observations
     e = {{"observation", "nothing_detected"},
          {"location", "shelf_red"},
          {"detail", "Arrived at shelf_red. Shelf contents look normal."}};
     events_.push_back(e.dump());
 
-    // Event 5: Another ambient observation
     e = {{"observation", "nothing_detected"},
          {"location", "deposit_table"},
          {"detail", "Passing deposit table area. No anomalies."}};
@@ -91,13 +93,11 @@ private:
       return;
     }
 
-    // Publish one perception event when a new move action starts (RESPONSE = confirmed)
     if (msg->type == plansys2_msgs::msg::ActionExecution::RESPONSE && !robot_moving_) {
       robot_moving_ = true;
       publish_next_event();
     }
 
-    // Reset when move finishes
     if (msg->type == plansys2_msgs::msg::ActionExecution::FINISH) {
       robot_moving_ = false;
     }

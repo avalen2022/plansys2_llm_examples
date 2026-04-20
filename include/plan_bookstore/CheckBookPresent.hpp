@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef PLAN_BOOKSTORE__CHECKBOOKPRESENT_HPP_
 #define PLAN_BOOKSTORE__CHECKBOOKPRESENT_HPP_
 
@@ -9,13 +23,6 @@
 namespace plan_bookstore
 {
 
-// BT node that simulates checking whether a book is physically present
-// at the robot's current location before attempting to pick it up.
-//
-// In the real system, this would query a perception sensor.
-// In simulation, it checks against the "displaced_book" parameter:
-// if the book being picked matches the displaced book, it returns FAILURE
-// (simulating "book not found here").
 class CheckBookPresent : public BT::ActionNodeBase
 {
 public:
@@ -33,8 +40,8 @@ public:
 
 private:
   std::string displaced_book_;
-  std::string displaced_from_;   // Original shelf where the book is NOT
-  bool initialized_{false};
+  std::string displaced_from_;
+  bool initialized_ = false;
 };
 
 }  // namespace plan_bookstore

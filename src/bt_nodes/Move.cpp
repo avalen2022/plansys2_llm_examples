@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <string>
 #include <iostream>
 #include <vector>
@@ -25,7 +39,6 @@ Move::Move(
     throw std::runtime_error("Move: failed to get 'node' from blackboard");
   }
 
-  // Check for fake navigation mode
   try {
     node_->declare_parameter<bool>("fake_navigation", false);
   } catch (const rclcpp::exceptions::ParameterAlreadyDeclaredException &) {}
@@ -35,7 +48,6 @@ Move::Move(
     RCLCPP_INFO(node_->get_logger(), "Move: FAKE navigation mode (no EasyNav)");
   }
 
-  // Load waypoints from parameters
   try {
     node_->declare_parameter<std::vector<std::string>>("waypoints");
   } catch (const rclcpp::exceptions::ParameterAlreadyDeclaredException &) {}
@@ -58,7 +70,6 @@ Move::Move(
     }
   }
 
-  // EasyNav communication (skip if fake)
   if (!fake_navigation_) {
     client_id_ = std::string(node_->get_name()) + "_move_client";
     rclcpp::QoS qos(100);
@@ -69,7 +80,6 @@ Move::Move(
       std::bind(&Move::on_control_msg, this, std::placeholders::_1));
   }
 
-  // Perception subscription — accumulates during move, included in FINISH out_msg
   perception_sub_ = node_->create_subscription<std_msgs::msg::String>(
     "/perception_events", 10,
     [this](const std_msgs::msg::String::SharedPtr msg) {
@@ -80,9 +90,7 @@ Move::Move(
 void
 Move::on_control_msg(NavigationControl::UniquePtr msg)
 {
-  // Ignore our own messages
   if (msg->user_id == client_id_) {return;}
-  // Ignore messages not addressed to us
   if (msg->nav_current_user_id != client_id_) {return;}
 
   switch (nav_state_) {
@@ -111,7 +119,6 @@ Move::on_control_msg(NavigationControl::UniquePtr msg)
           msg->status_message.c_str());
         nav_state_ = NavState::FAILED;
       }
-      // FEEDBACK messages — just logged, state stays NAVIGATING
       break;
 
     default:
@@ -122,7 +129,6 @@ Move::on_control_msg(NavigationControl::UniquePtr msg)
 BT::NodeStatus
 Move::tick()
 {
-  // Fake navigation: just count ticks and return SUCCESS
   if (fake_navigation_) {
     if (fake_tick_count_ == 0) {
       std::string goal;
@@ -154,7 +160,6 @@ Move::tick()
   switch (nav_state_) {
     case NavState::IDLE:
     {
-      // First tick — read goal, build and send NavigationControl REQUEST
       std::string goal;
       getInput<std::string>("goal", goal);
 
@@ -168,7 +173,6 @@ Move::tick()
       current_goal_name_ = goal;
       perceptions_during_move_.clear();
 
-      // Build PoseStamped
       geometry_msgs::msg::PoseStamped goal_pose;
       goal_pose.header.frame_id = "map";
       goal_pose.header.stamp = node_->now();
@@ -179,7 +183,6 @@ Move::tick()
       q.setRPY(0.0, 0.0, pose2d.theta);
       goal_pose.pose.orientation = tf2::toMsg(q);
 
-      // Build NavigationControl REQUEST
       NavigationControl msg;
       msg.type = NavigationControl::REQUEST;
       msg.header.frame_id = "map";
@@ -204,20 +207,17 @@ Move::tick()
     }
 
     case NavState::GOAL_SENT:
-      // Waiting for ACCEPT/REJECT from EasyNav
       config().blackboard->set("out_msg",
         std::string("Waiting for navigation to " + current_goal_name_ + "."));
       return BT::NodeStatus::RUNNING;
 
     case NavState::NAVIGATING:
-      // Robot is moving — accumulate perception events (via subscription callback)
       config().blackboard->set("out_msg",
         std::string("Navigating to " + current_goal_name_ + "."));
       return BT::NodeStatus::RUNNING;
 
     case NavState::FINISHED:
     {
-      // Build FINISH message with all perceptions accumulated during this move
       std::string out = "Arrived at " + current_goal_name_ + ".";
       if (!perceptions_during_move_.empty()) {
         out += " Perceptions during move:";
@@ -242,7 +242,6 @@ void
 Move::halt()
 {
   if (nav_state_ == NavState::NAVIGATING || nav_state_ == NavState::GOAL_SENT) {
-    // Send CANCEL to EasyNav
     NavigationControl msg;
     msg.type = NavigationControl::CANCEL;
     msg.header.stamp = node_->now();

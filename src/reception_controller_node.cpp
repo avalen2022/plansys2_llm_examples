@@ -1,3 +1,17 @@
+// Copyright 2026 Intelligent Robotics Lab
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <memory>
 #include <random>
 #include <string>
@@ -25,7 +39,7 @@ class Reception : public rclcpp::Node
 {
 public:
   Reception()
-  : rclcpp::Node("reception_controller"), state_(STARTING)
+  : rclcpp::Node("reception_controller"), state_(StateType::STARTING)
   {
   }
 
@@ -35,17 +49,13 @@ public:
     planner_client_ = std::make_shared<plansys2::PlannerClient>();
     problem_expert_ = std::make_shared<plansys2::ProblemExpertClient>();
     executor_client_ = std::make_shared<plansys2::ExecutorClient>();
-    // Ensure solver_timeout is set before SolverClient reads it
     if (!has_parameter("solver_timeout")) {
       declare_parameter<double>("solver_timeout", 150.0);
     }
     set_parameter(rclcpp::Parameter("solver_timeout", 150.0));
     solver_client_ = std::make_shared<plansys2::SolverClient>();
 
-    // Perception subscription — accumulates observations as backup context.
-    // Move BT nodes also capture perception via out_msg for the action hub,
-    // but timing issues mean the hub may not always contain perception data.
-    // This log is included in the solver question as additional context.
+    // Backup perception log used in solver prompt when /actions_hub dedup drops events.
     perception_sub_ = create_subscription<std_msgs::msg::String>(
       "/perception_events", 10,
       [this](const std_msgs::msg::String::SharedPtr msg) {
@@ -87,24 +97,16 @@ public:
     problem_expert_->addPredicate(plansys2::Predicate("(gripper_free curiosity)"));
     problem_expert_->addPredicate(plansys2::Predicate("(doing_nthg curiosity)"));
 
-    // All books start at their expected shelves in the PDDL symbolic state.
-    // The planner believes every book is in its predefined place.
     problem_expert_->addPredicate(plansys2::Predicate("(object_at red_book shelf_red)"));
     problem_expert_->addPredicate(plansys2::Predicate("(object_at green_book shelf_green)"));
     problem_expert_->addPredicate(plansys2::Predicate("(object_at yellow_book shelf_yellow)"));
     problem_expert_->addPredicate(plansys2::Predicate("(object_at blue_book shelf_blue)"));
 
-    // Choose one random book to be displaced (not physically at its shelf).
-    // The PDDL state still says it's there — the robot will discover it's missing
-    // when it tries to pick it up, triggering the LLM-based replanning.
     choose_displaced_book();
   }
 
   void choose_displaced_book()
   {
-    // The displaced book can be set via parameter (from launch file) or defaults
-    // to random selection. This same parameter must be passed to the deposit_book
-    // BT action node so CheckBookPresent knows which book to fail on.
     declare_parameter<std::string>("displaced_book", "");
     displaced_book_ = get_parameter("displaced_book").as_string();
 
@@ -128,12 +130,12 @@ public:
   {
     switch (state_)
     {
-      case STARTING:
+      case StateType::STARTING:
         RCLCPP_INFO(get_logger(), "State: STARTING -> PLANNING");
-        state_ = PLANNING;
+        state_ = StateType::PLANNING;
         break;
 
-      case PLANNING:
+      case StateType::PLANNING:
         {
           RCLCPP_INFO(get_logger(), "State: PLANNING");
 
@@ -149,22 +151,19 @@ public:
           if (!plan.has_value()) {
             RCLCPP_ERROR(get_logger(), "Could not find plan to reach goal %s",
               parser::pddl::toString(problem_expert_->getGoal()).c_str());
-            state_ = FINISH;
+            state_ = StateType::FINISH;
             break;
           }
 
           RCLCPP_INFO(get_logger(), "Plan found, starting execution");
           if (executor_client_->start_plan_execution(plan.value())) {
-            state_ = WORKING;
+            state_ = StateType::WORKING;
           }
           break;
         }
 
-      case WORKING:
+      case StateType::WORKING:
         {
-          // Perception events are accumulated passively in the background.
-          // No cancellation here — let the plan run until it succeeds or fails.
-
           if (!executor_client_->execute_and_check_plan()) {
             auto result = executor_client_->getResult();
 
@@ -172,28 +171,21 @@ public:
                 plansys2_msgs::action::ExecutePlan::Result::SUCCESS)
             {
               RCLCPP_INFO(get_logger(), "Plan successfully finished");
-              state_ = FINISH;
+              state_ = StateType::FINISH;
             } else {
-              // Plan failed — likely because a book was not found at its expected shelf.
-              // Query the LLM solver with the accumulated perception log so it can
-              // reason about where the missing book actually is.
               RCLCPP_ERROR(get_logger(),
                 "[EXECUTION_FAILURE] Plan failed. Querying solver with perception log...");
 
-              // Restore idle state after failure (at-start effects may have removed these).
-              // pick_book removes doing_nthg and gripper_free at-start; if it failed
-              // mid-way, we need to restore them for the replanned plan to work.
+              // pick_book's at-start effects remove doing_nthg+gripper_free; restore
+              // on failure so replan preconditions hold.
               problem_expert_->addPredicate(plansys2::Predicate("(doing_nthg curiosity)"));
               problem_expert_->addPredicate(plansys2::Predicate("(gripper_free curiosity)"));
               RCLCPP_INFO(get_logger(),
-                "[RECOVERY] Forced idle-state recovery after execution failure "
-                "(first-version assumption: doing_nthg + gripper_free restored)");
+                "[RECOVERY] Restored doing_nthg + gripper_free after execution failure");
 
               auto domain = domain_expert_->getDomain();
               auto problem = problem_expert_->getProblem();
 
-              // Include perception observations in the prompt so the LLM can
-              // reason about where the missing book actually is.
               std::string perception_context = build_perception_context();
 
               std::string prompt =
@@ -216,13 +208,13 @@ public:
 
               if (!solver_result.has_value()) {
                 RCLCPP_ERROR(get_logger(), "[EXECUTION_FAILURE] Solver did not respond");
-                state_ = FINISH;
+                state_ = StateType::FINISH;
               } else if (solver_result->classification ==
                 plansys2_solver_msgs::msg::Solver::CORRECT)
               {
                 RCLCPP_INFO(get_logger(),
                   "[EXECUTION_FAILURE] LLM: no state changes needed, replanning anyway");
-                state_ = PLANNING;
+                state_ = StateType::PLANNING;
               } else {
                 RCLCPP_INFO(get_logger(),
                   "[EXECUTION_FAILURE] Applying LLM state corrections...");
@@ -236,14 +228,14 @@ public:
                   RCLCPP_INFO(get_logger(), "ADD %s: %s",
                     pred_str.c_str(), ok ? "ok" : "failed");
                 }
-                state_ = PLANNING;
+                state_ = StateType::PLANNING;
               }
             }
           }
           break;
         }
 
-      case FINISH:
+      case StateType::FINISH:
         {
           RCLCPP_INFO(get_logger(), "State: FINISH");
           rclcpp::shutdown();
@@ -269,9 +261,6 @@ public:
 
 
 
-  // Getter so perception_sim or test code can know which book is displaced
-  const std::string & get_displaced_book() const { return displaced_book_; }
-
 private:
   std::shared_ptr<plansys2::DomainExpertClient> domain_expert_;
   std::shared_ptr<plansys2::PlannerClient> planner_client_;
@@ -284,7 +273,7 @@ private:
 
   std::string displaced_book_;
 
-  typedef enum {STARTING, PLANNING, WORKING, FINISH} StateType;
+  enum class StateType { STARTING, PLANNING, WORKING, FINISH };
   StateType state_;
 };
 
@@ -300,20 +289,6 @@ int main(int argc, char ** argv)
   }
 
   auto solver_node = std::make_shared<plansys2::SolverNode>();
-
-  // Set LLAMA solver as default if no params file was provided via --ros-args.
-  {
-    auto plugins = solver_node->get_parameter("solver_plugins").as_string_array();
-    if (plugins.empty()) {
-      solver_node->set_parameter(
-        rclcpp::Parameter("solver_plugins", std::vector<std::string>{"LLAMA"}));
-      solver_node->declare_parameter<std::string>(
-        "LLAMA.plugin", "plansys2/LLAMASolver");
-      solver_node->set_parameter(rclcpp::Parameter("solver_timeout", 240.0));
-      RCLCPP_INFO(solver_node->get_logger(),
-        "No solver params file provided, defaulting to LLAMA plugin");
-    }
-  }
 
   try {
     solver_node->configure();
