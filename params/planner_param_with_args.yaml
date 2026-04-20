@@ -22,6 +22,7 @@ solver:
     LLAMA:
       plugin: "plansys2/LLAMASolver"
       llm_debug: true
+      pre_launch: true
       model_yaml: "~/TFG/src/llm/llama_ros/llama_bringup/models/Qwen2.5-3B.yaml"
       launch_extra_args: ["--help"]
 solver_client:
