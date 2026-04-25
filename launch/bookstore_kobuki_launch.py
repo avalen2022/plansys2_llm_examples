@@ -12,6 +12,8 @@ Launches:
 import os
 from os.path import join
 
+import yaml
+
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
@@ -19,12 +21,46 @@ from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
     IncludeLaunchDescription,
+    OpaqueFunction,
     SetEnvironmentVariable,
+    TimerAction,
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+# (model_dir, x, y, z, roll, pitch, yaw)
+BOOK_SPECS = {
+    'red_book':    ('colored_book_red',    -2.2031, -4.82, 0.1633, 0.4114, 0.0, -1.5086),
+    'green_book':  ('colored_book_green',   1.0798, -4.9300, 0.2000, 0.2768, 0.0,  1.4530),
+    'yellow_book': ('colored_book_yellow',  1.0594, -1.2497, 0.1866, 0.3304, 0.0,  1.5137),
+    'blue_book':   ('colored_book_blue',   -2.1531, -1.5000, 0.1633, -0.4021, 0.0898, 1.8254),
+}
+FLOOR_BOOK_Z = 0.10
+GAZEBO_SPAWN_DELAY_S = 4.0
+
+
+def spawn_books(context):
+    displaced = LaunchConfiguration('displaced_book').perform(context)
+    bookstore_dir = get_package_share_directory('plan_bookstore')
+    with open(join(bookstore_dir, 'config', 'params.yaml')) as f:
+        mx, my, _ = yaml.safe_load(f)['move']['ros__parameters']['waypoint_coords']['middle_path']
+    floor_pose = (mx, my, FLOOR_BOOK_Z, 0.0, 0.0, 0.0)
+
+    actions = []
+    for book_name, (model_dir, *shelf_pose) in BOOK_SPECS.items():
+        x, y, z, roll, pitch, yaw = floor_pose if book_name == displaced else shelf_pose
+        sdf = join(bookstore_dir, 'models', model_dir, 'model.sdf')
+        actions.append(Node(
+            package='ros_gz_sim', executable='create', name=f'spawn_{book_name}',
+            arguments=['-name', book_name, '-file', sdf,
+                       '-x', str(x), '-y', str(y), '-z', str(z),
+                       '-R', str(roll), '-P', str(pitch), '-Y', str(yaw)],
+            output='screen',
+        ))
+    return actions
 
 
 def generate_launch_description():
@@ -224,5 +260,10 @@ def generate_launch_description():
     ld.add_action(pick_book_node)
     ld.add_action(place_book_node)
     ld.add_action(waypoint_tf)
+
+    ld.add_action(TimerAction(
+        period=GAZEBO_SPAWN_DELAY_S,
+        actions=[OpaqueFunction(function=spawn_books)],
+    ))
 
     return ld

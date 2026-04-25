@@ -1,0 +1,8 @@
+# YOLO model weights — auto-downloaded by ultralytics on first run
+*.pt
+
+# Local-only one-shot dev tool
+scripts/tint_book_textures.py
+
+# 14 MB GSO source — orphan once tint script isn't committed
+models/colored_book_red/meshes/texture_original.png
