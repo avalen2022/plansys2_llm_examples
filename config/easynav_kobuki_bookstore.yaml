@@ -82,5 +82,5 @@ sensors_node:
 system_node:
   ros__parameters:
     use_sim_time: true
-    position_tolerance: 0.5
+    position_tolerance: 0.6
     angle_tolerance: 6.28
