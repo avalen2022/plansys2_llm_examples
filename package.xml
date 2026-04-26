@@ -30,7 +30,9 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>std_msgs</depend>
 
-  <!-- Optional: yolo_msgs (only needed if building perception_yolo_node) -->
+  <depend>sensor_msgs</depend>
+  <depend>yolo_msgs</depend>
+  <depend>cv_bridge</depend>
 
   <exec_depend>plansys2_bringup</exec_depend>
   <exec_depend>plansys2_terminal</exec_depend>

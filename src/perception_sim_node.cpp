@@ -54,25 +54,41 @@ public:
   }
 
 private:
+  // "blue_book" -> "blue"; anything not ending in "_book" returns empty.
+  static std::string split_color(const std::string & full)
+  {
+    const std::string suffix = "_book";
+    if (full.size() > suffix.size() &&
+      full.compare(full.size() - suffix.size(), suffix.size(), suffix) == 0)
+    {
+      return full.substr(0, full.size() - suffix.size());
+    }
+    return {};
+  }
+
   void build_event_sequence()
   {
-    nlohmann::json e;
+    nlohmann::ordered_json e;
 
     e = {{"observation", "nothing_detected"},
          {"location", "reception"},
          {"detail", "Robot departing reception area. No objects detected."}};
     events_.push_back(e.dump());
 
-    e = {{"observation", "person_detected"},
+    e = {{"observation", "object_detected"},
+         {"object", "person"},
+         {"color", nullptr},
          {"location", "middle_path"},
+         {"confidence", 0.9},
          {"detail", "Person detected walking through middle corridor."}};
     events_.push_back(e.dump());
 
-    // The displaced-book sighting — the signal the LLM solver uses to correct state.
+    // Displaced-book sighting — the signal the LLM solver uses to correct state.
     e = {{"observation", "object_detected"},
-         {"object", object_},
+         {"object", "book"},
+         {"color", split_color(object_)},
          {"location", location_},
-         {"coords", {{"x", obs_x_}, {"y", obs_y_}}},
+         {"confidence", 0.95},
          {"detail", object_ + " detected on the floor at " + location_ + "."}};
     events_.push_back(e.dump());
 
