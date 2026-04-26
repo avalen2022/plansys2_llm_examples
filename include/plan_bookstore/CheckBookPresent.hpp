@@ -16,9 +16,14 @@
 #define PLAN_BOOKSTORE__CHECKBOOKPRESENT_HPP_
 
 #include <string>
+#include <vector>
 
 #include "behaviortree_cpp/behavior_tree.h"
 #include "behaviortree_cpp/bt_factory.h"
+
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "std_msgs/msg/string.hpp"
 
 namespace plan_bookstore
 {
@@ -39,9 +44,28 @@ public:
   }
 
 private:
+  struct TimedEvent
+  {
+    rclcpp::Time stamp;
+    std::string data;
+  };
+
+  rclcpp_lifecycle::LifecycleNode::SharedPtr node_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr perception_sub_;
+  std::vector<TimedEvent> events_;
+
   std::string displaced_book_;
   std::string displaced_from_;
-  bool initialized_ = false;
+
+  bool fake_check_ = false;
+  // Default settle outlasts perception_yolo_node's 2 s per-key cooldown so a
+  // sighting suppressed while the move-action subscription was alive can still
+  // be re-emitted before we declare the book missing.
+  double lookback_sec_ = 2.0;
+  double settle_sec_ = 2.5;
+
+  rclcpp::Time start_time_;
+  bool ticking_ = false;
 };
 
 }  // namespace plan_bookstore

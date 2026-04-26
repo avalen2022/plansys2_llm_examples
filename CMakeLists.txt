@@ -30,6 +30,10 @@ find_package(lifecycle_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(yolo_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
 
 
 add_library(move_bt_node SHARED src/bt_nodes/Move.cpp)
@@ -64,6 +68,7 @@ foreach(bt_plugin ${plugin_libs})
     PRIVATE
     ${tf2_geometry_msgs_TARGETS}
     ${std_msgs_TARGETS}
+    nlohmann_json::nlohmann_json
     rclcpp_lifecycle::rclcpp_lifecycle
     rclcpp::rclcpp
     rclcpp_action::rclcpp_action
@@ -104,6 +109,18 @@ target_link_libraries(perception_sim_node
   nlohmann_json::nlohmann_json
 )
 
+add_executable(perception_yolo_node src/perception_yolo_node.cpp)
+target_link_libraries(perception_yolo_node
+  PRIVATE
+  rclcpp::rclcpp
+  ${std_msgs_TARGETS}
+  ${sensor_msgs_TARGETS}
+  ${yolo_msgs_TARGETS}
+  cv_bridge::cv_bridge
+  ${OpenCV_LIBS}
+  nlohmann_json::nlohmann_json
+)
+
 install(DIRECTORY include/
   DESTINATION include/${PROJECT_NAME}
 )
@@ -119,7 +136,7 @@ install(TARGETS ${plugin_libs}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
-install(TARGETS reception_controller_node perception_sim_node
+install(TARGETS reception_controller_node perception_sim_node perception_yolo_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
