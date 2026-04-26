@@ -70,6 +70,7 @@ Move::Move(
     }
   }
 
+#ifdef HAS_EASYNAV
   if (!fake_navigation_) {
     client_id_ = std::string(node_->get_name()) + "_move_client";
     rclcpp::QoS qos(100);
@@ -79,6 +80,13 @@ Move::Move(
       "easynav_control", qos,
       std::bind(&Move::on_control_msg, this, std::placeholders::_1));
   }
+#else
+  if (!fake_navigation_) {
+    RCLCPP_WARN(node_->get_logger(),
+      "Move: built without easynav_interfaces; forcing fake_navigation=true");
+    fake_navigation_ = true;
+  }
+#endif
 
   perception_sub_ = node_->create_subscription<std_msgs::msg::String>(
     "/perception_events", 10,
@@ -87,6 +95,7 @@ Move::Move(
     });
 }
 
+#ifdef HAS_EASYNAV
 void
 Move::on_control_msg(NavigationControl::UniquePtr msg)
 {
@@ -125,6 +134,7 @@ Move::on_control_msg(NavigationControl::UniquePtr msg)
       break;
   }
 }
+#endif
 
 BT::NodeStatus
 Move::tick()
@@ -157,6 +167,7 @@ Move::tick()
     return BT::NodeStatus::RUNNING;
   }
 
+#ifdef HAS_EASYNAV
   switch (nav_state_) {
     case NavState::IDLE:
     {
@@ -234,6 +245,7 @@ Move::tick()
       nav_state_ = NavState::IDLE;
       return BT::NodeStatus::FAILURE;
   }
+#endif
 
   return BT::NodeStatus::FAILURE;
 }
@@ -241,6 +253,7 @@ Move::tick()
 void
 Move::halt()
 {
+#ifdef HAS_EASYNAV
   if (nav_state_ == NavState::NAVIGATING || nav_state_ == NavState::GOAL_SENT) {
     NavigationControl msg;
     msg.type = NavigationControl::CANCEL;
@@ -251,8 +264,10 @@ Move::halt()
 
     RCLCPP_INFO(node_->get_logger(), "Move halted — sent cancel to EasyNav");
   }
+#endif
 
   nav_state_ = NavState::IDLE;
+  fake_tick_count_ = 0;
 }
 
 }  // namespace plan_bookstore

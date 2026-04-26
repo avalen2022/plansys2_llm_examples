@@ -17,7 +17,10 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(plansys2_msgs REQUIRED)
 find_package(plansys2_solver_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(easynav_interfaces REQUIRED)
+find_package(easynav_interfaces QUIET)
+if(easynav_interfaces_FOUND)
+  add_compile_definitions(HAS_EASYNAV)
+endif()
 find_package(nav_msgs REQUIRED)
 find_package(plansys2_domain_expert REQUIRED)
 find_package(plansys2_executor REQUIRED)
@@ -31,9 +34,9 @@ find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(yolo_msgs REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(OpenCV REQUIRED)
+find_package(yolo_msgs QUIET)
+find_package(cv_bridge QUIET)
+find_package(OpenCV QUIET)
 
 
 add_library(move_bt_node SHARED src/bt_nodes/Move.cpp)
@@ -62,7 +65,7 @@ foreach(bt_plugin ${plugin_libs})
     PUBLIC
     behaviortree_cpp::behaviortree_cpp
     ${geometry_msgs_TARGETS}
-    ${easynav_interfaces_TARGETS}
+    $<$<BOOL:${easynav_interfaces_FOUND}>:${easynav_interfaces_TARGETS}>
     ${nav_msgs_TARGETS}
     plansys2_bt_actions::plansys2_bt_actions
     PRIVATE
@@ -109,17 +112,19 @@ target_link_libraries(perception_sim_node
   nlohmann_json::nlohmann_json
 )
 
-add_executable(perception_yolo_node src/perception_yolo_node.cpp)
-target_link_libraries(perception_yolo_node
-  PRIVATE
-  rclcpp::rclcpp
-  ${std_msgs_TARGETS}
-  ${sensor_msgs_TARGETS}
-  ${yolo_msgs_TARGETS}
-  cv_bridge::cv_bridge
-  ${OpenCV_LIBS}
-  nlohmann_json::nlohmann_json
-)
+if(yolo_msgs_FOUND AND cv_bridge_FOUND AND OpenCV_FOUND)
+  add_executable(perception_yolo_node src/perception_yolo_node.cpp)
+  target_link_libraries(perception_yolo_node
+    PRIVATE
+    rclcpp::rclcpp
+    ${std_msgs_TARGETS}
+    ${sensor_msgs_TARGETS}
+    ${yolo_msgs_TARGETS}
+    cv_bridge::cv_bridge
+    ${OpenCV_LIBS}
+    nlohmann_json::nlohmann_json
+  )
+endif()
 
 install(DIRECTORY include/
   DESTINATION include/${PROJECT_NAME}
@@ -136,9 +141,15 @@ install(TARGETS ${plugin_libs}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
-install(TARGETS reception_controller_node perception_sim_node perception_yolo_node
+install(TARGETS reception_controller_node perception_sim_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
+
+if(TARGET perception_yolo_node)
+  install(TARGETS perception_yolo_node
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
+  )
+endif()
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -155,7 +166,6 @@ ament_export_dependencies(
   rclcpp_lifecycle
   plansys2_msgs
   geometry_msgs
-  easynav_interfaces
   nav_msgs
   plansys2_domain_expert
   plansys2_executor

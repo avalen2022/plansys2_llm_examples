@@ -20,7 +20,9 @@
 #include <vector>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#ifdef HAS_EASYNAV
 #include "easynav_interfaces/msg/navigation_control.hpp"
+#endif
 #include "nav_msgs/msg/goals.hpp"
 #include "std_msgs/msg/string.hpp"
 
@@ -59,6 +61,7 @@ private:
   enum class NavState { IDLE, GOAL_SENT, NAVIGATING, FINISHED, FAILED };
   NavState nav_state_ = NavState::IDLE;
 
+#ifdef HAS_EASYNAV
   using NavigationControl = easynav_interfaces::msg::NavigationControl;
   rclcpp::Publisher<NavigationControl>::SharedPtr control_pub_;
   rclcpp::Subscription<NavigationControl>::SharedPtr control_sub_;
@@ -66,6 +69,7 @@ private:
   int64_t seq_ = 0;
 
   void on_control_msg(NavigationControl::UniquePtr msg);
+#endif
 
   std::map<std::string, Pose2D> waypoints_;
 
