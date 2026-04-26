@@ -37,9 +37,9 @@ from launch_ros.actions import Node
 
 # (model_dir, x, y, z, roll, pitch, yaw)
 BOOK_SPECS = {
-    'red_book':    ('colored_book_red',    -2.2031, -4.82, 0.1633, 0.4114, 0.0, -1.5086),
-    'green_book':  ('colored_book_green',   1.0798, -4.9300, 0.2000, 0.2768, 0.0,  1.4530),
-    'yellow_book': ('colored_book_yellow',  1.0594, -1.2497, 0.1866, 0.3304, 0.0,  1.5137),
+    'red_book':    ('colored_book_red',    -0.7720, -2.2646, -0.0113, 0.1718, 0.0183, -0.0869),
+    'green_book':  ('colored_book_green',   1.0574, -5.1190, 0.2000, 0.2768, 0.0,  1.4530),
+    'yellow_book': ('colored_book_yellow',  1.0314, -1.7404, 0.1866, 0.3304, 0.0,  1.5137),
     'blue_book':   ('colored_book_blue',   -2.1531, -1.5000, 0.1633, -0.4021, 0.0898, 1.8254),
 }
 FLOOR_BOOK_Z = 0.10
