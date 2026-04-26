@@ -24,6 +24,16 @@ def generate_launch_description():
         default_value='blue_book',
         description='Which book is displaced from its shelf (simulates missing book)')
 
+    declare_fake_navigation_cmd = DeclareLaunchArgument(
+        'fake_navigation',
+        default_value='true',
+        description='Skip EasyNav, fake the move action with a tick counter')
+
+    declare_fake_check_cmd = DeclareLaunchArgument(
+        'fake_check',
+        default_value='true',
+        description='Skip /perception_events, fake CheckBookPresent against displaced_book')
+
     plansys2_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(
             get_package_share_directory('plansys2_bringup'),
@@ -64,7 +74,7 @@ def generate_launch_description():
             'publisher_port': 1668,
             'server_port': 1669,
             'bt_xml_file': example_dir + '/bt_xml/move.xml',
-            'fake_navigation': True,
+            'fake_navigation': LaunchConfiguration('fake_navigation'),
           }
         ])
 
@@ -82,6 +92,7 @@ def generate_launch_description():
             'server_port': 1671,
             'bt_xml_file': example_dir + '/bt_xml/pick_book.xml',
             'displaced_book': displaced_book,
+            'fake_check': LaunchConfiguration('fake_check'),
           }
         ])
 
@@ -105,6 +116,8 @@ def generate_launch_description():
 
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_displaced_book_cmd)
+    ld.add_action(declare_fake_navigation_cmd)
+    ld.add_action(declare_fake_check_cmd)
     ld.add_action(perception_sim_cmd)
     ld.add_action(move_cmd)
     ld.add_action(pick_book_cmd)

@@ -14,12 +14,16 @@ from os.path import join
 
 import yaml
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_share_directory,
+)
 
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
+    GroupAction,
     IncludeLaunchDescription,
     OpaqueFunction,
     SetEnvironmentVariable,
@@ -27,7 +31,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EqualsSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -68,6 +72,19 @@ def generate_launch_description():
     kobuki_desc_dir = get_package_share_directory('kobuki_description')
     aws_bookstore_dir = get_package_share_directory('aws_robomaker_bookstore_world')
 
+    easynav_available = True
+    try:
+        get_package_share_directory('easynav_system')
+    except PackageNotFoundError:
+        easynav_available = False
+
+    yolo_available = True
+    yolo_bringup_dir = None
+    try:
+        yolo_bringup_dir = get_package_share_directory('yolo_bringup')
+    except PackageNotFoundError:
+        yolo_available = False
+
     namespace = LaunchConfiguration('namespace')
     displaced_book = LaunchConfiguration('displaced_book')
 
@@ -82,6 +99,20 @@ def generate_launch_description():
     declare_gui = DeclareLaunchArgument(
         'gui', default_value='true',
         description='Launch Gazebo GUI')
+
+    declare_perception_mode = DeclareLaunchArgument(
+        'perception_mode', default_value='sim',
+        description='Perception backend: "sim" (scripted events) or "real" (YOLO+HSV)')
+
+    declare_fake_navigation = DeclareLaunchArgument(
+        'fake_navigation',
+        default_value='false' if easynav_available else 'true',
+        description='Skip EasyNav, fake the move action with a tick counter')
+
+    declare_fake_check = DeclareLaunchArgument(
+        'fake_check',
+        default_value='false' if yolo_available else 'true',
+        description='Skip /perception_events, fake CheckBookPresent against displaced_book')
 
     # -- Environment -----------------------------------------------------------
     model_path = os.path.join(aws_bookstore_dir, 'models')
@@ -170,7 +201,47 @@ def generate_launch_description():
             'observed_y': -3.0,
             'use_sim_time': True,
         }],
+        condition=IfCondition(EqualsSubstitution(
+            LaunchConfiguration('perception_mode'), 'sim')),
     )
+
+    perception_yolo = Node(
+        package='plan_bookstore',
+        executable='perception_yolo_node',
+        name='perception_yolo',
+        namespace=namespace,
+        output='screen',
+        parameters=[{
+            'displaced_book': displaced_book,
+            'displaced_location': 'middle_path',
+            'use_sim_time': True,
+        }],
+        condition=IfCondition(EqualsSubstitution(
+            LaunchConfiguration('perception_mode'), 'real')),
+    )
+
+    yolo_v8 = None
+    if yolo_available:
+        yolo_v8 = GroupAction(
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(join(
+                        yolo_bringup_dir,
+                        'launch', 'yolov8.launch.py')),
+                    launch_arguments={
+                        'model': 'yolov8m.pt',
+                        'input_image_topic': '/rgbd_camera/image',
+                        'threshold': '0.25',
+                        'device': 'cuda:0',
+                        'namespace': 'yolo',
+                        'use_sim_time': 'true',
+                    }.items(),
+                ),
+            ],
+            condition=IfCondition(EqualsSubstitution(
+                LaunchConfiguration('perception_mode'), 'real')),
+            scoped=True,
+        )
 
     # -- 7. BT Action Nodes ---------------------------------------------------
     move_node = Node(
@@ -186,6 +257,7 @@ def generate_launch_description():
                 'publisher_port': 1668,
                 'server_port': 1669,
                 'bt_xml_file': join(bookstore_dir, 'bt_xml', 'move.xml'),
+                'fake_navigation': LaunchConfiguration('fake_navigation'),
                 'use_sim_time': True,
             },
         ],
@@ -205,6 +277,7 @@ def generate_launch_description():
                 'server_port': 1671,
                 'bt_xml_file': join(bookstore_dir, 'bt_xml', 'pick_book.xml'),
                 'displaced_book': displaced_book,
+                'fake_check': LaunchConfiguration('fake_check'),
                 'use_sim_time': True,
             },
         ],
@@ -246,15 +319,22 @@ def generate_launch_description():
     ld.add_action(declare_namespace)
     ld.add_action(declare_displaced_book)
     ld.add_action(declare_gui)
+    ld.add_action(declare_perception_mode)
+    ld.add_action(declare_fake_navigation)
+    ld.add_action(declare_fake_check)
 
     ld.add_action(gazebo_server)
     ld.add_action(gazebo_client)
     ld.add_action(spawn_robot)
     ld.add_action(ros_gz_bridge)
 
-    ld.add_action(easynav_system)
+    if easynav_available:
+        ld.add_action(easynav_system)
     ld.add_action(plansys2)
     ld.add_action(perception_sim)
+    if yolo_available:
+        ld.add_action(perception_yolo)
+        ld.add_action(yolo_v8)
 
     ld.add_action(move_node)
     ld.add_action(pick_book_node)
