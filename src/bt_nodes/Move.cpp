@@ -134,7 +134,6 @@ Move::tick()
       std::string goal;
       getInput<std::string>("goal", goal);
       current_goal_name_ = goal;
-      perceptions_during_move_.clear();
       RCLCPP_INFO(node_->get_logger(), "[FAKE] Move to %s started", goal.c_str());
       config().blackboard->set("out_msg",
         std::string("Navigating to " + goal + " (fake)."));
@@ -152,6 +151,7 @@ Move::tick()
       RCLCPP_INFO(node_->get_logger(), "[FAKE] Move to %s finished",
         current_goal_name_.c_str());
       fake_tick_count_ = 0;
+      perceptions_during_move_.clear();
       return BT::NodeStatus::SUCCESS;
     }
     return BT::NodeStatus::RUNNING;
@@ -171,7 +171,6 @@ Move::tick()
 
       const auto & pose2d = it->second;
       current_goal_name_ = goal;
-      perceptions_during_move_.clear();
 
       geometry_msgs::msg::PoseStamped goal_pose;
       goal_pose.header.frame_id = "map";
@@ -227,6 +226,7 @@ Move::tick()
       }
       config().blackboard->set("out_msg", out);
       nav_state_ = NavState::IDLE;
+      perceptions_during_move_.clear();
       return BT::NodeStatus::SUCCESS;
     }
 
